@@ -6,7 +6,6 @@
   "authors": [
     "sirishant"
   ],
-  "license": "AGPL-3.0",
   "description": "CRETA-SPECIFIC, no guarantee for any other car. Gives Google Maps this car's energy model over Android Auto, for battery on arrival and charging stops, and logs EV data to a USB folder. Based on egmp-aa-ev-feat. Needs the Wireless mod for Android Auto's newer navigation protocol.",
   "system": {
     "model": [
