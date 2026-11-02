@@ -1,7 +1,7 @@
 {
   "id": "ev-routing-creta",
   "name": "Google Maps EV routing (Creta Electric India, right-hand drive)",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "hmgapi": ">=1.0.0",
   "authors": [
     "sirishant"
