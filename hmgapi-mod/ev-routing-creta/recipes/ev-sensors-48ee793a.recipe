@@ -1,0 +1,11 @@
+# Android Auto library, Creta Electric India stock build: accept sensor type 23 and send one
+# whole raw message (egmp-aa-ev-feat docs/RESEARCH.md section 5d). No overlap with the Wireless
+# mod's recipe. Holds only hashes of the stock bytes and the new bytes written.
+id ev-sensors-48ee793a
+file /system/lib/libautoreceiver_infobank.so
+verify 0x144eb2 34 8f68bace7904ea1ac6e3ac90c890f4d6 58a638c5297f6bb63b36be8211a9a1f0
+verify 0xbb28e 36 afb4f4a2f122dda3c300a4c86d226527 b62fc1940f26827bb4fb8bfff2b5f478
+verify 0xbb628 36 53edd4c67954491369557e6e462f9584 1277e55e204659e34b4f77ede34606a9
+patch 0x144ec2 1628
+patch 0xbb29e 4ff00007
+patch 0xbb638 f6f79bb9

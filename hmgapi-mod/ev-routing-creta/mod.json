@@ -1,0 +1,65 @@
+{
+  "id": "ev-routing-creta",
+  "name": "Google Maps EV routing (Creta Electric India, right-hand drive)",
+  "version": "1.0.0",
+  "hmgapi": ">=1.0.0",
+  "authors": [
+    "sirishant"
+  ],
+  "license": "AGPL-3.0",
+  "description": "CRETA-SPECIFIC, no guarantee for any other car. Gives Google Maps this car's energy model over Android Auto, for battery on arrival and charging stops, and logs EV data to a USB folder. Based on egmp-aa-ev-feat. Needs the Wireless mod for Android Auto's newer navigation protocol.",
+  "system": {
+    "model": [
+      "SU2IEV"
+    ],
+    "region": "IND",
+    "firmware": "260430"
+  },
+  "requires": [
+    "wireless-carplay-aa ^2.2"
+  ],
+  "projection": {
+    "aa_sensors": {
+      "add": [
+        23
+      ]
+    },
+    "aa_fuel_types": [
+      10
+    ],
+    "aa_ev_connectors": [
+      5,
+      2
+    ]
+  },
+  "usb": [
+    "egmp-aa-ev-logs"
+  ],
+  "services": [
+    {
+      "name": "evlog-offload",
+      "script": "svc/evlog-offload.sh",
+      "user": "root"
+    }
+  ],
+  "logs": {
+    "tags": [
+      "EvModelSender",
+      "EvDriveLog",
+      "EvCar"
+    ]
+  },
+  "hooks": {
+    "jar": "hooks.jar",
+    "entry": "hmgapi.mods.evcreta.EvRouting",
+    "points": {
+      "gpm.sensor_source.init": "observe",
+      "gpm.receiver.destroy": "observe"
+    },
+    "native": {
+      "libautoreceiver_infobank.so": [
+        "recipes/ev-sensors-48ee793a.recipe"
+      ]
+    }
+  }
+}
