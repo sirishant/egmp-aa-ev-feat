@@ -1,12 +1,12 @@
 {
   "id": "ev-routing-creta",
-  "name": "Google Maps EV routing (Creta Electric India, right-hand drive)",
-  "version": "1.0.1",
+  "name": "EV routing (Creta)",
+  "version": "1.0.2",
   "hmgapi": ">=1.0.0",
   "authors": [
     "sirishant"
   ],
-  "description": "CRETA-SPECIFIC, no guarantee for any other car. Gives Google Maps this car's energy model over Android Auto, for battery on arrival and charging stops, and logs EV data to a USB folder. Based on egmp-aa-ev-feat. Needs the Wireless mod for Android Auto's newer navigation protocol.",
+  "description": "Creta Electric India only. Battery on arrival and charging stops in Google Maps, and EV logs to USB.",
   "system": {
     "model": [
       "SU2IEV"

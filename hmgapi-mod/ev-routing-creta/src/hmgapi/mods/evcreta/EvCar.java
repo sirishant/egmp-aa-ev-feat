@@ -6,14 +6,14 @@ import android.content.IntentFilter;
 import android.content.Intent;
 import android.location.Location;
 import android.location.LocationManager;
-import android.os.Binder;
 import android.os.IBinder;
-import android.os.Parcel;
 import android.os.SystemClock;
 import android.util.Log;
 
 import com.hkmc.cluster.NavigationCluster;
 import com.hkmc.cluster.NavigationClusterListener;
+
+import hmgapi.hook.Points;
 
 /**
  * Read-only car access shared by EvModelSender (AA sessions) and EvDriveLog
@@ -25,15 +25,17 @@ import com.hkmc.cluster.NavigationClusterListener;
  * Auto. Any thread.
  *
  * Sources:
- *  - HEV getHEVStatus(flag) (com.hkmc.micom.hev txn 3), cached per flag so a
- *    second caller within maxAgeMs gets the same value without a binder call
- *  - hscan (tm_hscan_service): speed 0x0b, SOH 0xd6, VIN 0x2f
+ *  Car services are found by name through HMG-API's hook map (the service names and
+ *  their asInterface on this car), so no binder transaction numbers are needed:
+ *  - HEV getHEVStatus(flag), cached per flag so a second caller within maxAgeMs
+ *    gets the same value without a binder call
+ *  - hscan getCarSpeed(0) and getXEV_Bms_GDS_SOH()
  *  - the nav battery packet via NavigationCluster.requestBatteryInfoReq()
  *    (pack min temp, outside temp, EV_AVLBL_ENRG, DTE), requested at most
  *    every NAV_POLL_MS whoever asks; the listener stays registered for the
  *    life of the process
- *  - DATC IDATCService.getVRClimateStatus(flag) (txn 0x29), a pure getter
- *    over the service's caches, and isUnitCelsius(unit) (txn 6)
+ *  - DATC IDATCService.getVRClimateStatus(flag), a pure getter over the
+ *    service's caches, and isUnitCelsius(unit), called by their interface names
  *  - GPS altitude: LocationManager.getLastKnownLocation("gps"); only the
  *    altitude leaves this class, never position or time.
  */
@@ -42,21 +44,10 @@ final class EvCar {
 
     static final int HEV_INVALID16 = 0xffff;
 
-    private static final String HEV_SERVICE = "com.hkmc.micom.hev";
-    private static final String HEV_TOKEN = "com.hkmc.hev.IHEVService";
-    private static final int HEV_TX_GET_HEV_STATUS = 3;
-
-    private static final String HCAN_SERVICE = "tm_hscan_service";
-    private static final String HCAN_TOKEN =
-            "com.hkmc.telematics.hscan.tm_interface.ITM_HSCANService";
-    private static final int HCAN_TX_GET_CAR_SPEED = 0x0b;  // getCarSpeed(B)F
-    private static final int HCAN_TX_GET_VIN = 0x2f;        // getVIN()String
-    private static final int HCAN_TX_GET_SOH = 0xd6;        // getXEV_Bms_GDS_SOH
-
-    private static final String DATC_SERVICE = "com.hkmc.micom.datc";
-    private static final String DATC_TOKEN = "com.hkmc.datc.IDATCService";
-    private static final int DATC_TX_IS_UNIT_CELSIUS = 0x06;
-    private static final int DATC_TX_GET_VR_CLIMATE_STATUS = 0x29;
+    // the car's services, through HMG-API's hook map
+    private static final String HEV = "framework.car_services.hev", HEV_AS = "framework.hev_service_stub.as_interface";
+    private static final String HCAN = "framework.hscan_adapter.service_name", HCAN_AS = "framework.hscan_service_stub.as_interface";
+    private static final String DATC = "framework.car_services.datc", DATC_AS = "framework.datc_service_stub.as_interface";
     // DATCFlag values getVRClimateStatus answers (DATCService.smali)
     static final int DATC_TEMP = 0x2;         // driver set temp, display unit
     static final int DATC_BLOWER_LEVEL = 0x5; // MainBlowerDisp
@@ -78,16 +69,15 @@ final class EvCar {
     private static final long NAV_POLL_MS = 4000;
     private static final long GPS_FRESH_NS = 10000L * 1000000L;
 
-    private static volatile IBinder sHev;
-    private static volatile IBinder sHcan;
-    private static volatile IBinder sDatc;
+    private static volatile Object sHev;
+    private static volatile Object sHcan;
+    private static volatile Object sDatc;
 
     private static final Object CACHE_LOCK = new Object();
     private static final int[] sHevVal = new int[256];
     private static final long[] sHevAt = new long[256];  // 0 = never read
 
     private static volatile int sSohRaw = Integer.MIN_VALUE;  // until > 0
-    private static volatile String sVinModel;                 // null = not read
 
     private EvCar() {}
 
@@ -120,31 +110,19 @@ final class EvCar {
         return v;
     }
 
-    /** IHEVService.getHEVStatus(flag) via binder transaction 3, -1 on failure. */
+    /** IHEVService.getHEVStatus(flag), -1 on failure. */
     private static int hevRead(int flag) {
         try {
-            IBinder b = sHev;
-            if (b == null) {
-                b = service(HEV_SERVICE);
-                if (b == null) {
+            Object s = sHev;
+            if (s == null) {
+                s = carService(HEV, HEV_AS);
+                if (s == null) {
                     return -1;
                 }
-                sHev = b;
+                sHev = s;
             }
-            Parcel data = Parcel.obtain();
-            Parcel reply = Parcel.obtain();
-            try {
-                data.writeInterfaceToken(HEV_TOKEN);
-                data.writeInt(flag);
-                if (!b.transact(HEV_TX_GET_HEV_STATUS, data, reply, 0)) {
-                    return -1;
-                }
-                reply.readException();
-                return reply.readInt();
-            } finally {
-                data.recycle();
-                reply.recycle();
-            }
+            Object v = Points.call(null, "framework.hev_service.hev_status", s, flag);
+            return v instanceof Integer ? ((Integer) v).intValue() : -1;
         } catch (Throwable t) {
             sHev = null;
             return -1;
@@ -155,7 +133,16 @@ final class EvCar {
 
     /** Display speed in km/h (hscan getCarSpeed unit 0), NaN if unknown. */
     static float speedKph() {
-        float v = hscanFloat(HCAN_TX_GET_CAR_SPEED, 0);
+        float v = Float.NaN;
+        try {
+            Object s = hscan();
+            Object r = s == null ? null : Points.call(null, "framework.hscan_service.car_speed", s, (byte) 0);
+            if (r instanceof Float) {
+                v = ((Float) r).floatValue();
+            }
+        } catch (Throwable t) {
+            sHcan = null;
+        }
         return Float.isNaN(v) || v < 0 || v > 400 ? Float.NaN : v;
     }
 
@@ -163,7 +150,16 @@ final class EvCar {
     static int sohRaw() {
         int s = sSohRaw;
         if (s <= 0) {
-            int v = hscanInt(HCAN_TX_GET_SOH);
+            int v = -1;
+            try {
+                Object svc = hscan();
+                Object r = svc == null ? null : Points.call(null, "framework.hscan_service.hv_health", svc);
+                if (r instanceof Integer) {
+                    v = ((Integer) r).intValue();
+                }
+            } catch (Throwable t) {
+                sHcan = null;
+            }
             if (v != s) {
                 Log.i(TAG, "BMS SOH raw: " + v);
             }
@@ -173,108 +169,13 @@ final class EvCar {
         return s;
     }
 
-    /**
-     * VIN characters 1-8 and 10 (make, model, body, motor, model year) for
-     * the log header; never the check digit, plant or serial. "" if unknown
-     * (retried next time).
-     */
-    static String vinModel() {
-        String m = sVinModel;
-        if (m == null || m.length() == 0) {
-            String vin = hscanString(HCAN_TX_GET_VIN);
-            m = vin != null && vin.matches("[A-HJ-NPR-Z0-9]{17}")
-                    ? vin.substring(0, 8) + vin.charAt(9) : "";
-            sVinModel = m;
+    private static Object hscan() throws Exception {
+        Object s = sHcan;
+        if (s == null) {
+            s = carService(HCAN, HCAN_AS);
+            sHcan = s;
         }
-        return m;
-    }
-
-    private static IBinder hscan() throws Exception {
-        IBinder b = sHcan;
-        if (b == null) {
-            b = service(HCAN_SERVICE);
-            sHcan = b;
-        }
-        return b;
-    }
-
-    /** hscan float getter with one byte argument, NaN on failure. */
-    private static float hscanFloat(int txn, int arg) {
-        try {
-            IBinder b = hscan();
-            if (b == null) {
-                return Float.NaN;
-            }
-            Parcel data = Parcel.obtain();
-            Parcel reply = Parcel.obtain();
-            try {
-                data.writeInterfaceToken(HCAN_TOKEN);
-                data.writeByte((byte) arg);
-                if (!b.transact(txn, data, reply, 0)) {
-                    return Float.NaN;
-                }
-                reply.readException();
-                return reply.readFloat();
-            } finally {
-                data.recycle();
-                reply.recycle();
-            }
-        } catch (Throwable t) {
-            sHcan = null;
-            return Float.NaN;
-        }
-    }
-
-    /** hscan int getter without arguments, -1 on failure. */
-    private static int hscanInt(int txn) {
-        try {
-            IBinder b = hscan();
-            if (b == null) {
-                return -1;
-            }
-            Parcel data = Parcel.obtain();
-            Parcel reply = Parcel.obtain();
-            try {
-                data.writeInterfaceToken(HCAN_TOKEN);
-                if (!b.transact(txn, data, reply, 0)) {
-                    return -1;
-                }
-                reply.readException();
-                return reply.readInt();
-            } finally {
-                data.recycle();
-                reply.recycle();
-            }
-        } catch (Throwable t) {
-            sHcan = null;
-            return -1;
-        }
-    }
-
-    /** hscan String getter, null on failure. */
-    private static String hscanString(int txn) {
-        try {
-            IBinder b = hscan();
-            if (b == null) {
-                return null;
-            }
-            Parcel data = Parcel.obtain();
-            Parcel reply = Parcel.obtain();
-            try {
-                data.writeInterfaceToken(HCAN_TOKEN);
-                if (!b.transact(txn, data, reply, 0)) {
-                    return null;
-                }
-                reply.readException();
-                return reply.readString();
-            } finally {
-                data.recycle();
-                reply.recycle();
-            }
-        } catch (Throwable t) {
-            sHcan = null;
-            return null;
-        }
+        return s;
     }
 
     // ---- nav battery packet ----------------------------------------------------
@@ -402,13 +303,13 @@ final class EvCar {
 
     // ---- DATC (climate) --------------------------------------------------------
 
-    private static IBinder datc() throws Exception {
-        IBinder b = sDatc;
-        if (b == null) {
-            b = service(DATC_SERVICE);
-            sDatc = b;
+    private static Object datc() throws Exception {
+        Object s = sDatc;
+        if (s == null) {
+            s = carService(DATC, DATC_AS);
+            sDatc = s;
         }
-        return b;
+        return s;
     }
 
     /** IDATCService.getVRClimateStatus(flag); NaN on failure or invalid (< 0). */
@@ -439,25 +340,13 @@ final class EvCar {
 
     private static float climateUncached(int flag) {
         try {
-            IBinder b = datc();
-            if (b == null) {
+            Object s = datc();
+            if (s == null) {
                 return Float.NaN;
             }
-            Parcel data = Parcel.obtain();
-            Parcel reply = Parcel.obtain();
-            try {
-                data.writeInterfaceToken(DATC_TOKEN);
-                data.writeInt(flag);
-                if (!b.transact(DATC_TX_GET_VR_CLIMATE_STATUS, data, reply, 0)) {
-                    return Float.NaN;
-                }
-                reply.readException();
-                float v = reply.readFloat();
-                return v < 0 || Float.isNaN(v) || Float.isInfinite(v) ? Float.NaN : v;
-            } finally {
-                data.recycle();
-                reply.recycle();
-            }
+            Object r = s.getClass().getMethod("getVRClimateStatus", int.class).invoke(s, flag);
+            float v = r instanceof Float ? ((Float) r).floatValue() : Float.NaN;
+            return v < 0 || Float.isNaN(v) || Float.isInfinite(v) ? Float.NaN : v;
         } catch (Throwable t) {
             sDatc = null;
             return Float.NaN;
@@ -467,24 +356,15 @@ final class EvCar {
     /** IDATCService.isUnitCelsius(unit): 1 yes, 0 no, -1 unknown. */
     static int climateUnitIsCelsius(int unitRaw) {
         try {
-            IBinder b = datc();
-            if (b == null) {
+            Object s = datc();
+            if (s == null) {
                 return -1;
             }
-            Parcel data = Parcel.obtain();
-            Parcel reply = Parcel.obtain();
-            try {
-                data.writeInterfaceToken(DATC_TOKEN);
-                data.writeInt(unitRaw);
-                if (!b.transact(DATC_TX_IS_UNIT_CELSIUS, data, reply, 0)) {
-                    return -1;
-                }
-                reply.readException();
-                return reply.readInt() != 0 ? 1 : 0;
-            } finally {
-                data.recycle();
-                reply.recycle();
+            Object r = s.getClass().getMethod("isUnitCelsius", int.class).invoke(s, unitRaw);
+            if (r instanceof Integer) {
+                return ((Integer) r).intValue() != 0 ? 1 : 0;
             }
+            return r instanceof Boolean ? (((Boolean) r).booleanValue() ? 1 : 0) : -1;
         } catch (Throwable t) {
             sDatc = null;
             return -1;
@@ -537,6 +417,13 @@ final class EvCar {
     }
 
     // ---- helpers ---------------------------------------------------------------
+
+    /** a car service's interface: its name and asInterface from HMG-API's hook map */
+    private static Object carService(String namePoint, String asInterfacePoint) throws Exception {
+        Object name = Points.get(null, namePoint, null);
+        IBinder b = name == null ? null : service(String.valueOf(name));
+        return b == null ? null : Points.call(null, asInterfacePoint, null, b);
+    }
 
     private static IBinder service(String name) throws Exception {
         return (IBinder) Class.forName("android.os.ServiceManager")
