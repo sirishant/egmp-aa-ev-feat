@@ -345,6 +345,16 @@
       "desc": "Maps' planned charging time at that stop, s"
     },
     {
+      "name": "hscan_soc_pct",
+      "type": "number",
+      "desc": "HSCAN remainBatteryPercentage, %"
+    },
+    {
+      "name": "hscan_range_km",
+      "type": "int",
+      "desc": "HSCAN ableDriveDistance(0), km"
+    },
+    {
       "name": "pack_max_c",
       "type": "number",
       "desc": "highest battery module temperature, \u00b0C"

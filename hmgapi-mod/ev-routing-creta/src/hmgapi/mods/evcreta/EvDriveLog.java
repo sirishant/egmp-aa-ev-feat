@@ -105,6 +105,7 @@ public final class EvDriveLog {
         "clim_set_raw", "clim_set_c", "clim_unit_raw", "clim_blower_raw",
         "clim_mode_raw", "clim_ac_raw", "clim_auto_raw", "clim_op_raw",
         "nav_charger_dep_wh", "nav_charger_chg_s",
+        "hscan_soc_pct", "hscan_range_km",
     };
 
     private static final Object LOCK = new Object();
@@ -376,6 +377,10 @@ public final class EvDriveLog {
         v[i++] = climInt(EvCar.DATC_OP_STATE);
         v[i++] = null;
         v[i++] = null;
+        float hs = EvCar.hscanSocPct();
+        v[i++] = Float.isNaN(hs) ? null : round1(hs);
+        int hr = EvCar.hscanRangeKm();
+        v[i++] = hr >= 0 ? Integer.valueOf(hr) : null;
         if (i != v.length) {
             throw new IllegalStateException("log row has " + i + " values for "
                     + v.length + " columns");

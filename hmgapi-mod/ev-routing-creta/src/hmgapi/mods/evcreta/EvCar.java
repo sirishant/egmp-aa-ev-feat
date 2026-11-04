@@ -149,6 +149,36 @@ final class EvCar {
         return Float.isNaN(v) || v < 0 || v > 400 ? Float.NaN : v;
     }
 
+    /** HSCAN's battery percentage (CarPlay EV routing's charge source on other cars), NaN if unknown. */
+    static float hscanSocPct() {
+        float v = Float.NaN;
+        try {
+            Object s = hscan();
+            Object r = s == null ? null : Points.call(s.getClass().getClassLoader(), "framework.hscan_service.battery_percent", s);
+            if (r instanceof Float) {
+                v = ((Float) r).floatValue();
+            }
+        } catch (Throwable t) {
+            sHcan = null;
+        }
+        return Float.isNaN(v) || v < 0 || v > 100 ? Float.NaN : v;
+    }
+
+    /** HSCAN's range in km (CarPlay EV routing's range source), -1 if unknown. */
+    static int hscanRangeKm() {
+        int v = -1;
+        try {
+            Object s = hscan();
+            Object r = s == null ? null : Points.call(s.getClass().getClassLoader(), "framework.hscan_service.drive_range", s, (byte) 0);
+            if (r instanceof Integer) {
+                v = ((Integer) r).intValue();
+            }
+        } catch (Throwable t) {
+            sHcan = null;
+        }
+        return v >= 0 && v < 2000 ? v : -1;
+    }
+
     /** BMS SOH raw; re-read until it reports a value (it reads 0 at boot). */
     static int sohRaw() {
         int s = sSohRaw;
