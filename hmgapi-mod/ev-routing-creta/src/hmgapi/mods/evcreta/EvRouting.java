@@ -20,16 +20,23 @@ import hmgapi.hook.ModEntry;
 public final class EvRouting extends ModEntry {
     static final String GPM = "com.google.android.projection.sink";
     static final String SENSOR_SOURCE = "com.google.android.projection.protocol.SensorSource";
+    static final String LIB = "libautoreceiver_infobank.so";
 
     @Override
     public void appLoaded(final ModContext mod, LoadedApp app) {
-        if (!GPM.equals(app.packageName)) return;
+        if (!GPM.equals(app.packageName) || !GPM.equals(app.processName)) return;
         EvDriveLog.start();
-        mod.nativePatch(app, "libautoreceiver_infobank.so");
+        mod.nativePatch(app, LIB);
         final ClassLoader cl = app.classLoader;
         mod.hook(cl, "gpm.sensor_source.init", new MethodHook() {
             @Override
             protected void afterHookedMethod(Param m) {
+                if (Boolean.FALSE.equals(m.getResult())) return;   // the sensor source didn't start
+                // without the library patch, the raw call is the stock diagnostics report: nothing goes out
+                if (!mod.nativePatched(LIB)) {
+                    mod.log("energy model off: the AA library patch isn't in place");
+                    return;
+                }
                 try {
                     final Object source = m.thisObject;
                     final Method raw = source.getClass().getDeclaredMethod("nativeReportDiagnosticsData", byte[].class);
@@ -53,6 +60,12 @@ public final class EvRouting extends ModEntry {
         // gone before it runs. HMG-API has no hook point for it, and a new one would need
         // every car's map redone, so this hooks the method by name.
         Hooks.findAndHookMethod(SENSOR_SOURCE, cl, "shutdown", new MethodHook() {
+            @Override
+            protected void beforeHookedMethod(Param m) {
+                EvModelSender.stop();
+            }
+        });
+        mod.hook(cl, "gpm.receiver_service.disconnected", new MethodHook() {
             @Override
             protected void beforeHookedMethod(Param m) {
                 EvModelSender.stop();

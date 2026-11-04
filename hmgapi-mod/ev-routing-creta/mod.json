@@ -2,10 +2,11 @@
   "id": "ev-routing-creta",
   "name": "EV routing (Creta)",
   "version": "1.0.3",
-  "hmgapi": ">=1.0.0",
+  "hmgapi": ">=1.0.1",
   "authors": [
     "sirishant"
   ],
+  "repo": "https://github.com/sirishant/egmp-aa-ev-feat",
   "description": "Creta Electric India only. Battery on arrival and charging stops in Google Maps, and EV logs to USB.",
   "system": {
     "model": [
@@ -53,7 +54,8 @@
     "entry": "hmgapi.mods.evcreta.EvRouting",
     "points": {
       "gpm.sensor_source.init": "observe",
-      "gpm.receiver.destroy": "observe"
+      "gpm.receiver.destroy": "observe",
+      "gpm.receiver_service.disconnected": "observe"
     },
     "native": {
       "libautoreceiver_infobank.so": [
