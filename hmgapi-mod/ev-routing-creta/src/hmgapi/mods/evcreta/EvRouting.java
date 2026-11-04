@@ -31,7 +31,10 @@ public final class EvRouting extends ModEntry {
         mod.hook(cl, "gpm.sensor_source.init", new MethodHook() {
             @Override
             protected void afterHookedMethod(Param m) {
-                if (Boolean.FALSE.equals(m.getResult())) return;   // the sensor source didn't start
+                if (Boolean.FALSE.equals(m.getResult())) {
+                    mod.log("energy model off: Android Auto's sensor service didn't register");
+                    return;
+                }
                 // without the library patch, the raw call is the stock diagnostics report: nothing goes out
                 if (!mod.nativePatched(LIB)) {
                     mod.log("energy model off: the AA library patch isn't in place");

@@ -17,7 +17,11 @@ LOG=${HMGAPI_DATA:-/data/local/tmp}/offload.log
 POLL_S=20
 DRIVES="/storage/usb0 /storage/usb1 /storage/usb2 /mnt/media_rw/usb0 /mnt/media_rw/usb1 /mnt/media_rw/usb2"
 
+# its own log stays small: past 256 KB it becomes offload.log.old (one kept)
 log() {
+    local _s
+    _s=$(size_of "$LOG")
+    [ -n "$_s" ] && [ "$_s" -gt 262144 ] && mv "$LOG" "$LOG.old" 2>/dev/null
     echo "$(date) $1" >> "$LOG" 2>/dev/null
 }
 
