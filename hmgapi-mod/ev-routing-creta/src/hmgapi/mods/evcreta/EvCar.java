@@ -47,6 +47,9 @@ final class EvCar {
     // the car's services, through HMG-API's hook map
     private static final String HEV = "framework.car_services.hev", HEV_AS = "framework.hev_service_stub.as_interface";
     private static final String HCAN = "framework.hscan_adapter.service_name", HCAN_AS = "framework.hscan_service_stub.as_interface";
+    // the hscan classes are in a library Android Auto's app doesn't declare: its own loader, as HMG-API's vehicle hub
+    private static final String HCAN_JAR = "/system/framework/com.hkmc.ext.hcan.jar";
+    private static volatile ClassLoader sHcanLoader;
     private static final String DATC = "framework.car_services.datc", DATC_AS = "framework.datc_service_stub.as_interface";
     // DATCFlag values getVRClimateStatus answers (DATCService.smali)
     static final int DATC_TEMP = 0x2;         // driver set temp, display unit
@@ -115,7 +118,7 @@ final class EvCar {
         try {
             Object s = sHev;
             if (s == null) {
-                s = carService(HEV, HEV_AS);
+                s = carService(HEV, HEV_AS, null);
                 if (s == null) {
                     return -1;
                 }
@@ -136,7 +139,7 @@ final class EvCar {
         float v = Float.NaN;
         try {
             Object s = hscan();
-            Object r = s == null ? null : Points.call(null, "framework.hscan_service.car_speed", s, (byte) 0);
+            Object r = s == null ? null : Points.call(s.getClass().getClassLoader(), "framework.hscan_service.car_speed", s, (byte) 0);
             if (r instanceof Float) {
                 v = ((Float) r).floatValue();
             }
@@ -153,7 +156,7 @@ final class EvCar {
             int v = -1;
             try {
                 Object svc = hscan();
-                Object r = svc == null ? null : Points.call(null, "framework.hscan_service.hv_health", svc);
+                Object r = svc == null ? null : Points.call(svc.getClass().getClassLoader(), "framework.hscan_service.hv_health", svc);
                 if (r instanceof Integer) {
                     v = ((Integer) r).intValue();
                 }
@@ -172,7 +175,12 @@ final class EvCar {
     private static Object hscan() throws Exception {
         Object s = sHcan;
         if (s == null) {
-            s = carService(HCAN, HCAN_AS);
+            ClassLoader cl = sHcanLoader;
+            if (cl == null) {
+                cl = new dalvik.system.PathClassLoader(HCAN_JAR, EvCar.class.getClassLoader());
+                sHcanLoader = cl;
+            }
+            s = carService(HCAN, HCAN_AS, cl);
             sHcan = s;
         }
         return s;
@@ -306,7 +314,7 @@ final class EvCar {
     private static Object datc() throws Exception {
         Object s = sDatc;
         if (s == null) {
-            s = carService(DATC, DATC_AS);
+            s = carService(DATC, DATC_AS, null);
             sDatc = s;
         }
         return s;
@@ -418,11 +426,11 @@ final class EvCar {
 
     // ---- helpers ---------------------------------------------------------------
 
-    /** a car service's interface: its name and asInterface from HMG-API's hook map */
-    private static Object carService(String namePoint, String asInterfacePoint) throws Exception {
-        Object name = Points.get(null, namePoint, null);
+    /** a car service's interface: its name and asInterface from HMG-API's hook map, classes from cl (null: the framework) */
+    private static Object carService(String namePoint, String asInterfacePoint, ClassLoader cl) throws Exception {
+        Object name = Points.get(cl, namePoint, null);
         IBinder b = name == null ? null : service(String.valueOf(name));
-        return b == null ? null : Points.call(null, asInterfacePoint, null, b);
+        return b == null ? null : Points.call(cl, asInterfacePoint, null, b);
     }
 
     private static IBinder service(String name) throws Exception {
