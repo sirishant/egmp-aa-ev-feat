@@ -36,7 +36,7 @@ import java.util.TimeZone;
  *
  * Technical data only: no location (GPS gives only the altitude change since
  * the file started), no addresses or names, no wall-clock times (the file's
- * UTC date only), no full VIN.
+ * UTC date only), no VIN.
  *
  * Never throws out of its entry points: this runs inside GPM, where an
  * uncaught exception kills Android Auto.
@@ -105,7 +105,7 @@ public final class EvDriveLog {
         "clim_set_raw", "clim_set_c", "clim_unit_raw", "clim_blower_raw",
         "clim_mode_raw", "clim_ac_raw", "clim_auto_raw", "clim_op_raw",
         "nav_charger_dep_wh", "nav_charger_chg_s",
-        "hscan_soc_pct", "hscan_range_km",
+        "hscan_soc_pct", "hscan_range_km", "batt12v_soc_pct",
     };
 
     private static final Object LOCK = new Object();
@@ -381,6 +381,8 @@ public final class EvDriveLog {
         v[i++] = Float.isNaN(hs) ? null : round1(hs);
         int hr = EvCar.hscanRangeKm();
         v[i++] = hr >= 0 ? Integer.valueOf(hr) : null;
+        int b12 = EvCar.battery12vSoc();
+        v[i++] = b12 >= 0 ? Integer.valueOf(b12) : null;
         if (i != v.length) {
             throw new IllegalStateException("log row has " + i + " values for "
                     + v.length + " columns");

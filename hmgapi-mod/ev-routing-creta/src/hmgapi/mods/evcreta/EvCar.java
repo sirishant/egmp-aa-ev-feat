@@ -164,6 +164,21 @@ final class EvCar {
         return Float.isNaN(v) || v < 0 || v > 100 ? Float.NaN : v;
     }
 
+    /** HSCAN's 12 V battery charge (the battery sensor's estimate, getBatSoc), -1 if unknown. */
+    static int battery12vSoc() {
+        int v = -1;
+        try {
+            Object s = hscan();
+            Object r = s == null ? null : Points.call(s.getClass().getClassLoader(), "framework.hscan_service.battery_12v_soc", s);
+            if (r instanceof Integer) {
+                v = ((Integer) r).intValue();
+            }
+        } catch (Throwable t) {
+            sHcan = null;
+        }
+        return v < 0 || v > 100 ? -1 : v;
+    }
+
     /** HSCAN's range in km (CarPlay EV routing's range source), -1 if unknown. */
     static int hscanRangeKm() {
         int v = -1;

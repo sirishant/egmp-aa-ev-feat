@@ -355,6 +355,11 @@
       "desc": "HSCAN ableDriveDistance(0), km"
     },
     {
+      "name": "batt12v_soc_pct",
+      "type": "int",
+      "desc": "HSCAN getBatSoc: the 12 V battery sensor's charge estimate, %"
+    },
+    {
       "name": "pack_max_c",
       "type": "number",
       "desc": "highest battery module temperature, \u00b0C"
