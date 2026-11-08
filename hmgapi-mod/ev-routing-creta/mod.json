@@ -1,7 +1,7 @@
 {
   "id": "ev-routing-creta",
   "name": "EV routing (Creta)",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "hmgapi": ">=1.0.1",
   "authors": [
     "sirishant"
@@ -53,7 +53,7 @@
     "jar": "hooks.jar",
     "entry": "hmgapi.mods.evcreta.EvRouting",
     "points": {
-      "gpm.sensor_source.init": "observe",
+      "gpm.sensor_source.init": "change",
       "gpm.receiver.destroy": "observe",
       "gpm.receiver_service.disconnected": "observe"
     },

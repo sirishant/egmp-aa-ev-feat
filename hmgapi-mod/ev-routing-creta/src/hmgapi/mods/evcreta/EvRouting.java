@@ -30,7 +30,23 @@ public final class EvRouting extends ModEntry {
         final ClassLoader cl = app.classLoader;
         mod.hook(cl, "gpm.sensor_source.init", new MethodHook() {
             @Override
+            protected void beforeHookedMethod(Param m) {
+                // the battery level, range and odometer for Android Auto apps (LiveData): types the
+                // stock library takes, so only offered here
+                if (m.args[2] instanceof int[]) {
+                    m.args[2] = LiveData.withSensor(LiveData.withSensor((int[]) m.args[2], LiveData.SENSOR_FUEL), LiveData.SENSOR_ODOMETER);
+                }
+            }
+
+            @Override
             protected void afterHookedMethod(Param m) {
+                if (!Boolean.FALSE.equals(m.getResult())) {
+                    try {
+                        startLiveData(m.thisObject);
+                    } catch (Throwable t) {
+                        mod.error("live battery data not started", t);
+                    }
+                }
                 if (Boolean.FALSE.equals(m.getResult())) {
                     mod.log("energy model off: Android Auto's sensor service didn't register");
                     return;
@@ -66,18 +82,44 @@ public final class EvRouting extends ModEntry {
             @Override
             protected void beforeHookedMethod(Param m) {
                 EvModelSender.stop();
+                LiveData.stop();
             }
         });
         mod.hook(cl, "gpm.receiver_service.disconnected", new MethodHook() {
             @Override
             protected void beforeHookedMethod(Param m) {
                 EvModelSender.stop();
+                LiveData.stop();
             }
         });
         mod.hook(cl, "gpm.receiver.destroy", new MethodHook() {
             @Override
             protected void beforeHookedMethod(Param m) {
                 EvDriveLog.flush();
+            }
+        });
+    }
+
+    /**
+     * The battery level, range and odometer through GPM's own senders: the fuel report by its
+     * native call (an unknown range is left out rather than sent as 0), the odometer by its
+     * Java wrapper (km).
+     */
+    static void startLiveData(final Object source) throws Exception {
+        final Method fuel = source.getClass().getDeclaredMethod("nativeReportFuelData",
+                boolean.class, int.class, boolean.class, int.class, boolean.class, boolean.class);
+        fuel.setAccessible(true);
+        final Method odo = source.getClass().getDeclaredMethod("reportOdometerData", double.class);
+        odo.setAccessible(true);
+        LiveData.start(new LiveData.Out() {
+            @Override
+            public void fuel(int percent, int rangeMeters, boolean low) throws Exception {
+                fuel.invoke(source, true, percent, rangeMeters >= 0, Math.max(rangeMeters, 0), true, low);
+            }
+
+            @Override
+            public void odometer(double km) throws Exception {
+                odo.invoke(source, km);
             }
         });
     }
