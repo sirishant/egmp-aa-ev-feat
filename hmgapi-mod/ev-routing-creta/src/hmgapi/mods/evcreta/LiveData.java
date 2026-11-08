@@ -8,8 +8,9 @@ import android.util.Log;
  * mileage). Android Auto carries them as the fuel sensor (6: level %, range, low warning)
  * and the odometer sensor (5); GPM's SensorSource can send both (nativeReportFuelData,
  * reportOdometerData, also in the Creta's GPM) but never offers them. Both are types the
- * stock library accepts, so no library patch: EvRouting offers them at the sensor service's
- * start, and this sends them every PERIOD_MS while a session runs.
+ * stock library accepts, so no library patch: HMG-API offers them at the sensor service's
+ * start (mod.json aa_sensors add 6 and 5), and this sends them every PERIOD_MS while a session
+ * runs.
  *
  * After AwsomeFox/egmp-aa-ev-hmg-api ddc9e3d ("Live battery %, range and odometer for
  * Android Auto apps"). On the Creta the range is HSCAN's (ableDriveDistance, what CarPlay EV
@@ -18,7 +19,6 @@ import android.util.Log;
  */
 final class LiveData {
     private static final String TAG = "EvLiveData";
-    static final int SENSOR_ODOMETER = 5, SENSOR_FUEL = 6;
     private static final int PERIOD_MS = 5000;
     private static final long MAX_AGE_MS = 1500;   // shares EvDriveLog's and the sender's reads
     private static final int HEV_DISPLAY_SOC = 0x19, HEV_ODOMETER = 0x1f;
@@ -110,14 +110,6 @@ final class LiveData {
         int[] f = fuel(socHalf, rangeKm);
         if (f != null) out.fuel(f[0], f[1], f[2] != 0);
         if (odoRaw > 0) out.odometer(odoRaw / 10.0);
-    }
-
-    /** the sensor list with one more type, if it isn't in it yet */
-    static int[] withSensor(int[] types, int type) {
-        for (int t : types) if (t == type) return types;
-        int[] out = java.util.Arrays.copyOf(types, types.length + 1);
-        out[types.length] = type;
-        return out;
     }
 
     /** {percent, range m (-1 unknown), low 0/1} for the fuel sensor, or null without a state of charge */

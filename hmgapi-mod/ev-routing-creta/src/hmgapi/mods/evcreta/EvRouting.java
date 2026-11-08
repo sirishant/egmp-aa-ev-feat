@@ -29,15 +29,8 @@ public final class EvRouting extends ModEntry {
         mod.nativePatch(app, LIB);
         final ClassLoader cl = app.classLoader;
         mod.hook(cl, "gpm.sensor_source.init", new MethodHook() {
-            @Override
-            protected void beforeHookedMethod(Param m) {
-                // the battery level, range and odometer for Android Auto apps (LiveData): types the
-                // stock library takes, so only offered here
-                if (m.args[2] instanceof int[]) {
-                    m.args[2] = LiveData.withSensor(LiveData.withSensor((int[]) m.args[2], LiveData.SENSOR_FUEL), LiveData.SENSOR_ODOMETER);
-                }
-            }
-
+            // the battery level, range and odometer for Android Auto apps (LiveData): types the stock
+            // library takes; HMG-API offers them (mod.json aa_sensors add 6 and 5)
             @Override
             protected void afterHookedMethod(Param m) {
                 if (!Boolean.FALSE.equals(m.getResult())) {

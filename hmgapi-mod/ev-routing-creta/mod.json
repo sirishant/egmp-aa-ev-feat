@@ -21,7 +21,9 @@
   "projection": {
     "aa_sensors": {
       "add": [
-        23
+        23,
+        6,
+        5
       ]
     },
     "aa_fuel_types": [
@@ -53,7 +55,7 @@
     "jar": "hooks.jar",
     "entry": "hmgapi.mods.evcreta.EvRouting",
     "points": {
-      "gpm.sensor_source.init": "change",
+      "gpm.sensor_source.init": "observe",
       "gpm.receiver.destroy": "observe",
       "gpm.receiver_service.disconnected": "observe"
     },

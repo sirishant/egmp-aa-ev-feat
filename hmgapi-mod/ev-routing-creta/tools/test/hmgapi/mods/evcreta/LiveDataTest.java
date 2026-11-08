@@ -24,13 +24,6 @@ public final class LiveDataTest {
         eq("range out of range (the Creta's DTE 65790): left out", "85 -1 0", f(170, 65790));
         eq("low at 10%", "10 40000 1", f(20, 40));
         eq("no state of charge: nothing", "null", f(-1, 300));
-        eq("sensor offered once", "[1, 6, 5]", java.util.Arrays.toString(withSensor()));
         if (fails > 0) throw new AssertionError(fails + " failed");
-    }
-
-    static int[] withSensor() {
-        int[] t = { 1 };
-        t = LiveData.withSensor(LiveData.withSensor(t, 6), 5);
-        return LiveData.withSensor(t, 6);
     }
 }
